@@ -70,7 +70,11 @@ bool Handle::createObject(const Scheme &scheme, data::Value &data) {
 	auto val = ins.values();
 	for (auto &it : data.asDict()) {
 		auto f = scheme.getField(it.first);
-		val.value(Binder::DataField{it.second, f->isDataLayout()});
+		if (f->getType() == Type::FullTextView) {
+			val.value(Binder::FullTextField{it.second});
+		} else {
+			val.value(Binder::DataField{it.second, f->isDataLayout()});
+		}
 	}
 
 	if (id == 0) {
@@ -108,7 +112,9 @@ bool Handle::saveObject(const Scheme &scheme, uint64_t oid, const data::Value &d
 			auto &val = data.getValue(it);
 			if (auto f_it = scheme.getField(it)) {
 				auto type = f_it->getType();
-				if (type != storage::Type::Set && type != storage::Type::Array) {
+				if (type == storage::Type::FullTextView) {
+					upd.set(it, Binder::FullTextField{val});
+				} else if (type != storage::Type::Set && type != storage::Type::Array) {
 					upd.set(it, Binder::DataField{val, f_it->isDataLayout()});
 				}
 			}
@@ -117,7 +123,9 @@ bool Handle::saveObject(const Scheme &scheme, uint64_t oid, const data::Value &d
 		for (auto &it : data.asDict()) {
 			if (auto f_it = scheme.getField(it.first)) {
 				auto type = f_it->getType();
-				if (type != storage::Type::Set && type != storage::Type::Array) {
+				if (type == storage::Type::FullTextView) {
+					upd.set(it.first, Binder::FullTextField{it.second});
+				} else if (type != storage::Type::Set && type != storage::Type::Array) {
 					upd.set(it.first, Binder::DataField{it.second, f_it->isDataLayout()});
 				}
 			}
@@ -165,9 +173,12 @@ data::Value Handle::patchObject(const Scheme &scheme, uint64_t oid, const data::
 	ExecQuery query;
 	auto upd = query.update(scheme.getName());
 	for (auto &it : data.asDict()) {
-		auto f_it = scheme.getField(it.first);
-		if (f_it) {
-			upd.set(it.first, Binder::DataField{it.second, f_it->isDataLayout()});
+		if (auto f_it = scheme.getField(it.first)) {
+			if (f_it->getType() == Type::FullTextView) {
+				upd.set(it.first, Binder::FullTextField{it.second});
+			} else {
+				upd.set(it.first, Binder::DataField{it.second, f_it->isDataLayout()});
+			}
 		}
 	}
 

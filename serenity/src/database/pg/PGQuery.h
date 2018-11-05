@@ -46,6 +46,10 @@ public:
 		bool force = false;
 	};
 
+	struct FullTextField {
+		const data::Value &data;
+	};
+
 	struct TypeString {
 		StringView str;
 		StringView type;
@@ -69,6 +73,7 @@ public:
 	void writeBind(StringStream &, const data::Value &);
 	void writeBind(StringStream &, const DataField &);
 	void writeBind(StringStream &, const TypeString &);
+	void writeBind(StringStream &, const FullTextField &);
 
 	void clear();
 

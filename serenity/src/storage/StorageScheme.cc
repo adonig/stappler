@@ -37,6 +37,13 @@ bool Scheme::initSchemes(Server &serv, const Map<String, const Scheme *> &scheme
 				if (slot->scheme) {
 					const_cast<Scheme *>(slot->scheme)->addView(it.second, &fit.second);
 				}
+			} else if (fit.second.getType() == Type::FullTextView) {
+				auto slot = static_cast<const FieldFullTextView *>(fit.second.getSlot());
+				for (auto &req_it : slot->requires) {
+					if (auto f = it.second->getField(req_it)) {
+						const_cast<Scheme *>(it.second)->fullTextFields.emplace(f);
+					}
+				}
 			}
 			if (fit.second.hasFlag(Flags::Composed) && (fit.second.getType() == Type::Object || fit.second.getType() == Type::Set)) {
 				auto slot = static_cast<const FieldObject *>(fit.second.getSlot());
@@ -195,7 +202,7 @@ bool Scheme::isAtomicPatch(const data::Value &val) const {
 		for (auto &it : val.asDict()) {
 			auto f = getField(it.first);
 			// extra field should use select-update
-			if (f && (f->getType() == Type::Extra || forceInclude.find(f) != forceInclude.end())) {
+			if (f && (f->getType() == Type::Extra || forceInclude.find(f) != forceInclude.end() || fullTextFields.find(f) != fullTextFields.end())) {
 				return false;
 			}
 		}
@@ -380,6 +387,8 @@ data::Value Scheme::create(Adapter *adapter, const data::Value &data, bool isPro
 
 	data::Value changeSet = data;
 	transform(changeSet, isProtected?TransformAction::ProtectedCreate:TransformAction::Create);
+
+	processFullTextFields(changeSet);
 
 	bool stop = false;
 	for (auto &it : fields) {
@@ -620,6 +629,7 @@ data::Value Scheme::updateObject(Adapter *adapter, data::Value && obj, data::Val
 		}
 	}
 
+	processFullTextFields(changeSet);
 	if (!viewsToUpdate.empty() || !parentsToUpdate.empty()) {
 		if (adapter->performInTransaction([&] {
 			if (adapter->saveObject(*this, obj.getInteger("__oid"), obj, updatedFields)) {
@@ -662,7 +672,7 @@ data::Value Scheme::patchOrUpdate(Adapter *adapter, uint64_t id, data::Value & p
 				return ret;
 			}
 		} else {
-			if (auto obj = get(adapter, id, true)) {
+			if (auto obj = makeObjectForPatch(adapter, id, data::Value(), patch)) {
 				return updateObject(adapter, std::move(obj), patch);
 			}
 		}
@@ -671,6 +681,20 @@ data::Value Scheme::patchOrUpdate(Adapter *adapter, uint64_t id, data::Value & p
 }
 
 data::Value Scheme::patchOrUpdate(Adapter *adapter, const data::Value & obj, data::Value & patch, const FieldVec &fields) const {
+	auto isObjectValid = [&] (const data::Value &obj) -> bool {
+		for (auto &it : patch.asDict()) {
+			if (!obj.hasValue(it.first)) {
+				return false;
+			}
+		}
+		for (auto &it : forceInclude) {
+			if (!obj.hasValue(it->getName())) {
+				return false;
+			}
+		}
+		return true;
+	};
+
 	if (!patch.empty()) {
 		if (isAtomicPatch(patch)) {
 			if (auto ret = adapter->patchObject(*this, obj.getInteger("__oid"), patch, fields)) {
@@ -678,7 +702,11 @@ data::Value Scheme::patchOrUpdate(Adapter *adapter, const data::Value & obj, dat
 				return ret;
 			}
 		} else {
-			return updateObject(adapter, data::Value(obj), patch);
+			if (isObjectValid(obj)) {
+				return updateObject(adapter, data::Value(obj), patch);
+			} else if (auto patchObj = makeObjectForPatch(adapter, obj.getInteger("__oid"), obj, patch)) {
+				return updateObject(adapter, std::move(patchObj), patch);
+			}
 		}
 	}
 	return data::Value();
@@ -927,6 +955,8 @@ data::Value &Scheme::transform(data::Value &d, TransformAction a) const {
 		auto &fname = it->first;
 		auto f_it = fields.find(fname);
 		if (f_it == fields.end()
+				|| f_it->second.getType() == Type::FullTextView
+
 				// we can write into readonly field only in protected mode
 				|| (f_it->second.hasFlag(Flags::ReadOnly) && a != TransformAction::ProtectedCreate && a != TransformAction::ProtectedUpdate)
 
@@ -1008,6 +1038,92 @@ data::Value Scheme::createFile(Adapter *adapter, const Field &field, const Bytes
 // call after object is created, used for custom field initialization
 data::Value Scheme::initField(Adapter *, Object *, const Field &, const data::Value &) {
 	return data::Value::Null;
+}
+
+void Scheme::processFullTextFields(data::Value &patch) const {
+	Vector<const FieldFullTextView *> vec; vec.reserve(2);
+	for (auto &it : fields) {
+		if (it.second.getType() == Type::FullTextView) {
+			auto slot = it.second.getSlot<FieldFullTextView>();
+			for (auto &p_it : patch.asDict()) {
+				if (std::find(slot->requires.begin(), slot->requires.end(), p_it.first) != slot->requires.end()) {
+					if (std::find(vec.begin(), vec.end(), slot) == vec.end()) {
+						vec.emplace_back(slot);
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	for (auto &it : vec) {
+		if (it->viewFn) {
+			auto result = it->viewFn(*this, patch);
+			if (!result.empty()) {
+				data::Value val;
+				for (auto &r_it : result) {
+					auto &value = val.emplace();
+					value.addString(r_it.buffer);
+					value.addString(r_it.language);
+					value.addInteger(toInt(r_it.rank));
+				}
+				patch.setValue(move(val), it->name);
+			}
+		}
+	}
+}
+
+data::Value Scheme::makeObjectForPatch(Adapter *adapter, uint64_t oid, const data::Value &obj, const data::Value &patch) const {
+	Set<const Field *> includeFields;
+
+	Query query;
+	prepareGetQuery(query, oid, true);
+
+	for (auto &it : patch.asDict()) {
+		if (auto f = getField(it.first)) {
+			if (!obj.hasValue(it.first)) {
+				includeFields.emplace(f);
+			}
+		}
+	}
+
+	for (auto &it : forceInclude) {
+		if (!obj.hasValue(it->getName())) {
+			includeFields.emplace(it);
+		}
+	}
+
+	for (auto &it : fields) {
+		if (it.second.getType() == Type::FullTextView) {
+			auto slot = it.second.getSlot<FieldFullTextView>();
+			for (auto &p_it : patch.asDict()) {
+				auto req_it = std::find(slot->requires.begin(), slot->requires.end(), p_it.first);
+				if (req_it != slot->requires.end()) {
+					for (auto &it : slot->requires) {
+						if (auto f = getField(it)) {
+							includeFields.emplace(f);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for (auto &it : includeFields) {
+		query.include(Query::Field(String(it->getName())));
+	}
+
+	auto ret = reduceGetQuery(adapter->selectObjects(*this, query));
+	if (!obj) {
+		return ret;
+	} else {
+		for (auto &it : obj.asDict()) {
+			if (!ret.hasValue(it.first)) {
+				ret.setValue(it.second, it.first);
+			}
+		}
+		return ret;
+	}
 }
 
 data::Value Scheme::removeField(Adapter *adapter, data::Value &obj, const Field &f, const data::Value &value) {

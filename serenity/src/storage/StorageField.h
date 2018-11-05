@@ -45,6 +45,7 @@ enum class Type {
 	File,
 	Image,
 	View, // immutable predicate-based reference set of objects
+	FullTextView, // full-text search resource
 };
 
 inline bool checkIfComparationIsValid(Type t, Comparation c) {
@@ -166,6 +167,21 @@ using DefaultFn = Function<data::Value(const data::Value &)>;
 using ViewLinkageFn = Function<Vector<uint64_t>(const Scheme &targetScheme, const Scheme &objScheme, const data::Value &obj)>;
 using ViewFn = Function<Vector<data::Value>(const Scheme &objScheme, const data::Value &obj)>;
 
+struct FullTextData {
+	enum SearchRank {
+		A,
+		B,
+		C,
+		D
+	};
+
+	String buffer;
+	String language;
+	SearchRank rank = D;
+};
+
+using FullTextViewFn = Function<Vector<FullTextData>(const Scheme &objScheme, const data::Value &obj)>;
+
 class Field : public AllocPool {
 public:
 	template <typename ... Args> static Field Data(String && name, Args && ... args);
@@ -182,6 +198,7 @@ public:
 	template <typename ... Args> static Field Set(String && name, Args && ... args);
 	template <typename ... Args> static Field Array(String && name, Args && ... args);
 	template <typename ... Args> static Field View(String && name, Args && ... args);
+	template <typename ... Args> static Field FullTextView(String && name, Args && ... args);
 
 	template <typename ... Args> static Field Extra(String &&name, InitializerList<Field> &&, Args && ... args);
 
@@ -419,6 +436,20 @@ struct FieldView : Field::Slot {
 	bool delta = false;
 };
 
+struct FieldFullTextView : Field::Slot {
+	virtual ~FieldFullTextView() { }
+
+	template <typename ... Args>
+	FieldFullTextView(String && n, Args && ... args) : Field::Slot(move(n), Type::FullTextView) {
+		init<FieldFullTextView, Args...>(*this, std::forward<Args>(args)...);
+	}
+
+	virtual bool transformValue(const Scheme &, data::Value &) const override { return false; }
+
+	Vector<String> requires;
+	FullTextViewFn viewFn;
+};
+
 template <typename ... Args> Field Field::Data(String && name, Args && ... args) {
 	auto newSlot = new Field::Slot(std::move(name), Type::Data);
 	Slot::init<Field::Slot>(*newSlot, std::forward<Args>(args)...);
@@ -485,6 +516,10 @@ template <typename ... Args> Field Field::Array(String && name, Args && ... args
 
 template <typename ... Args> Field Field::View(String && name, Args && ... args) {
 	return Field(new FieldView(move(name), forward<Args>(args)...));
+}
+
+template <typename ... Args> Field Field::FullTextView(String && name, Args && ... args) {
+	return Field(new FieldFullTextView(move(name), forward<Args>(args)...));
 }
 
 
@@ -597,6 +632,12 @@ template <> struct FieldOption<FieldView, Vector<String>> {
 	}
 };
 
+template <> struct FieldOption<FieldFullTextView, Vector<String>> {
+	static inline void assign(FieldFullTextView & f, Vector<String> && s) {
+		f.requires = move(s);
+	}
+};
+
 template <typename F> struct FieldOption<F, ViewLinkageFn> {
 	static inline void assign(F & f, ViewLinkageFn && s) {
 		f.linkage = move(s);
@@ -605,6 +646,12 @@ template <typename F> struct FieldOption<F, ViewLinkageFn> {
 
 template <typename F> struct FieldOption<F, ViewFn> {
 	static inline void assign(F & f, ViewFn && s) {
+		f.viewFn = move(s);
+	}
+};
+
+template <typename F> struct FieldOption<F, FullTextViewFn> {
+	static inline void assign(F & f, FullTextViewFn && s) {
 		f.viewFn = move(s);
 	}
 };

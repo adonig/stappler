@@ -215,6 +215,9 @@ protected:
 	// call after object is created, used for custom field initialization
 	data::Value initField(Adapter *, Object *, const Field &, const data::Value &);
 
+	void processFullTextFields(data::Value &patch) const;
+	data::Value makeObjectForPatch(Adapter *, uint64_t id, const data::Value &, const data::Value &patch) const;
+
 	void updateLimits();
 
 	bool validateHint(uint64_t, const data::Value &);
@@ -235,6 +238,7 @@ protected:
 	Vector<ViewScheme *> views;
 	Vector<ParentScheme *> parents;
 	Set<const Field *> forceInclude;
+	Set<const Field *> fullTextFields;
 };
 
 

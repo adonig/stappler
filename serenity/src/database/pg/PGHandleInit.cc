@@ -304,6 +304,7 @@ void TableRec::writeCompareResult(StringStream &stream,
 				case ColRec::Type::Float:	stream << "double precision"; break;
 				case ColRec::Type::Boolean:	stream << "boolean"; break;
 				case ColRec::Type::Text: 	stream << "text"; break;
+				case ColRec::Type::TsVector:stream << "tsvector"; break;
 				default: break;
 				}
 
@@ -337,6 +338,7 @@ void TableRec::writeCompareResult(StringStream &stream,
 				case ColRec::Type::Float:	stream << "double precision"; break;
 				case ColRec::Type::Boolean:	stream << "boolean"; break;
 				case ColRec::Type::Text: 	stream << "text"; break;
+				case ColRec::Type::TsVector:stream << "tsvector"; break;
 				default: break;
 				}
 				if (cit.second.notNull) {
@@ -619,6 +621,8 @@ Map<String, TableRec> TableRec::get(Handle &h, StringStream &stream) {
 					table.cols.emplace(it.at(1).str(), ColRec(ColRec::Type::Text, !isNullable));
 				} else if (type == "bytea") {
 					table.cols.emplace(it.at(1).str(), ColRec(ColRec::Type::Binary, !isNullable));
+				} else if (type == "tsvector") {
+					table.cols.emplace(it.at(1).str(), ColRec(ColRec::Type::TsVector, !isNullable));
 				} else {
 					table.cols.emplace(it.at(1).str(), ColRec(ColRec::Type::None, !isNullable));
 				}
@@ -734,6 +738,11 @@ TableRec::TableRec(Server &serv, const storage::Scheme *scheme) {
 		case storage::Type::File:
 		case storage::Type::Image:
 			cols.emplace(it.first, ColRec(ColRec::Type::Integer, f.hasFlag(storage::Flags::Required)));
+			emplaced = true;
+			break;
+
+		case storage::Type::FullTextView:
+			cols.emplace(it.first, ColRec(ColRec::Type::TsVector, f.hasFlag(storage::Flags::Required)));
 			emplaced = true;
 			break;
 

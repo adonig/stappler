@@ -56,6 +56,7 @@ struct ColRec {
 		Float,
 		Boolean,
 		Text,
+		TsVector
 	};
 
 	Type type = Type::None;

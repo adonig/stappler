@@ -143,6 +143,31 @@ void Binder::writeBind(StringStream &query, const TypeString &type) {
 		query << "$" << num << "::" << type.type;
 	}
 }
+void Binder::writeBind(StringStream &query, const FullTextField &d) {
+	if (!d.data || !d.data.isArray() || d.data.size() == 0) {
+		query << "NULL";
+	} else {
+		bool first = true;
+		for (auto &it : d.data.asArray()) {
+			auto &data = it.getString(0);
+			auto lang = it.getString(1);
+			auto rank = it.getInteger(2);
+
+			if (!data.empty()) {
+				if (lang.empty()) {
+					lang = "simple";
+				}
+
+				if (!first) { query << " || "; } else { first = false; }
+
+				auto confIdx = push(lang);
+				auto dataIdx = push(data);
+
+				query << "setweight(to_tsvector($" << confIdx << "::regconfig, $" << dataIdx << "::text), '" << char('A' + char(rank)) << "')";
+			}
+		}
+	}
+}
 
 void Binder::clear() {
 	params.clear();
