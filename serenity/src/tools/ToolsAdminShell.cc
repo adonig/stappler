@@ -601,6 +601,44 @@ struct DeleteCmd : ResourceCmd {
 	}
 };
 
+struct SearchCmd : ResourceCmd {
+	SearchCmd() : ResourceCmd("search") { }
+
+	virtual bool run(ShellSocketHandler &h, StringView &r) override {
+		auto schemeName = r.readUntil<StringView::CharGroup<CharGroupId::WhiteSpace>>();
+		r.skipChars<StringView::CharGroup<CharGroupId::WhiteSpace>>();
+
+		StringView path("/");
+		if (r.is('/') || r.is<StringView::CharGroup<CharGroupId::Numbers>>()) {
+			path = r.readUntil<StringView::CharGroup<CharGroupId::WhiteSpace>>();
+			r.skipChars<StringView::CharGroup<CharGroupId::WhiteSpace>>();
+		}
+
+		if (auto res = acquireResource(h, schemeName, path, StringView())) {
+			auto str = r.readUntil<StringView::Chars<'('>>();
+
+			res->applyQuery(data::Value{ pair("search", data::Value(r)) });
+			if (auto val = res->getResultObject()) {
+				h.sendData(val);
+				return true;
+			} else {
+				h.sendError(toString("Action for scheme ", schemeName, " is forbidden for ", h.getUser()->getName()));
+			}
+		}
+
+		h.sendError("Fail to delete object");
+
+		return true;
+	}
+
+	virtual StringView desc() const {
+		return "<scheme> <path> <text> - Run full-text search";
+	}
+	virtual StringView help() const {
+		return "<scheme> <path> <text> - Run full-text search";
+	}
+};
+
 struct HandlersCmd : SocketCommand {
 	HandlersCmd() : SocketCommand("handlers") { }
 
@@ -831,6 +869,7 @@ ShellSocketHandler::ShellSocketHandler(Manager *m, const Request &req, User *use
 	_cmds.push_back(new AppendCmd());
 	_cmds.push_back(new UploadCmd());
 	_cmds.push_back(new DeleteCmd());
+	_cmds.push_back(new SearchCmd());
 	//_cmds.push_back(new ModeCmd());
 	_cmds.push_back(new DebugCmd());
 	_cmds.push_back(new CloseCmd());

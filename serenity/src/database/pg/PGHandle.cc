@@ -336,6 +336,7 @@ Resource *Handle::makeResource(ResourceType type, QueryList &&list, const Field 
 	case ResourceType::View: return new ResourceView(this, std::move(list)); break;
 	case ResourceType::File: return new ResourceFile(this, std::move(list), f); break;
 	case ResourceType::Array: return new ResourceArray(this, std::move(list), f); break;
+	case ResourceType::Search: return new ResourceSearch(this, std::move(list), f); break;
 	}
 	return nullptr;
 }

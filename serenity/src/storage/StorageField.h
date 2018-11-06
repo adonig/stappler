@@ -167,20 +167,8 @@ using DefaultFn = Function<data::Value(const data::Value &)>;
 using ViewLinkageFn = Function<Vector<uint64_t>(const Scheme &targetScheme, const Scheme &objScheme, const data::Value &obj)>;
 using ViewFn = Function<Vector<data::Value>(const Scheme &objScheme, const data::Value &obj)>;
 
-struct FullTextData {
-	enum SearchRank {
-		A,
-		B,
-		C,
-		D
-	};
-
-	String buffer;
-	String language;
-	SearchRank rank = D;
-};
-
 using FullTextViewFn = Function<Vector<FullTextData>(const Scheme &objScheme, const data::Value &obj)>;
+using FullTextQueryFn = Function<Vector<FullTextData>(const data::Value &searchData)>;
 
 class Field : public AllocPool {
 public:
@@ -448,6 +436,7 @@ struct FieldFullTextView : Field::Slot {
 
 	Vector<String> requires;
 	FullTextViewFn viewFn;
+	FullTextQueryFn queryFn;
 };
 
 template <typename ... Args> Field Field::Data(String && name, Args && ... args) {

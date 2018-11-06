@@ -113,6 +113,20 @@ static void QueryFieldResolver_resolveByName(Set<const Field *> &ret, const Map<
 	}
 }
 
+
+String FullTextData::getLanguageString(Language lang) {
+	switch (lang) {
+	case Simple: return "simple"; break;
+	case English: return "english"; break;
+	case Russian: return "russian"; break;
+	}
+	return String();
+}
+
+String FullTextData::getLanguageString() const {
+	return getLanguageString(language);
+}
+
 QueryFieldResolver::QueryFieldResolver() : root(nullptr) { }
 
 QueryFieldResolver::QueryFieldResolver(const Scheme &scheme, const Query &query, const Vector<String> &extraFields) {
@@ -362,6 +376,16 @@ bool QueryList::offset(const Scheme *scheme, size_t offset) {
 		return true;
 	}
 
+	return false;
+}
+
+bool QueryList::setFullTextQuery(const Field *field, Vector<FullTextData> &&data) {
+	if (queries.size() > 0 && field->getType() == Type::FullTextView) {
+		Item &b = queries.back();
+		b.field = field;
+		b.fullTextQuery = move(data);
+		return true;
+	}
 	return false;
 }
 
@@ -704,6 +728,8 @@ bool QueryList::apply(const data::Value &val) {
 			}
 		} else if (it.first == "forUpdate") {
 			q.forUpdate();
+		} else {
+			extraData.setValue(it.second, it.first);
 		}
 	}
 
@@ -740,6 +766,10 @@ const Query::FieldsVec &QueryList::getExcludeFields() const {
 
 QueryFieldResolver QueryList::getFields() const {
 	return QueryFieldResolver(queries.back().fields);
+}
+
+const data::Value &QueryList::getExtraData() const {
+	return extraData;
 }
 
 NS_SA_EXT_END(storage)

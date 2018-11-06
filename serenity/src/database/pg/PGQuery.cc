@@ -150,20 +150,15 @@ void Binder::writeBind(StringStream &query, const FullTextField &d) {
 		bool first = true;
 		for (auto &it : d.data.asArray()) {
 			auto &data = it.getString(0);
-			auto lang = it.getString(1);
+			auto lang = FullTextData::Language(it.getInteger(1));
 			auto rank = it.getInteger(2);
 
 			if (!data.empty()) {
-				if (lang.empty()) {
-					lang = "simple";
-				}
-
 				if (!first) { query << " || "; } else { first = false; }
 
-				auto confIdx = push(lang);
 				auto dataIdx = push(data);
 
-				query << "setweight(to_tsvector($" << confIdx << "::regconfig, $" << dataIdx << "::text), '" << char('A' + char(rank)) << "')";
+				query << "setweight(to_tsvector('" << FullTextData::getLanguageString(lang) << "', $" << dataIdx << "::text), '" << char('A' + char(rank)) << "')";
 			}
 		}
 	}
@@ -296,11 +291,35 @@ auto ExecQuery::writeSelectFrom(GenericQuery &q, const QueryList::Item &item, bo
 		return q.select(ExecQuery::Field(schemeName, fieldName).as("id")).from(schemeName);
 	}
 
+	bool isFullText = (item.field && !item.fullTextQuery.empty() && item.field->getType() == Type::FullTextView);
+
 	auto sel = q.select();
 	auto &fields = item.getQueryFields();
 
+	if (isFullText) {
+		sel.query->writeBind(RawString{toString(" ts_rank(", schemeName, ".\"", item.field->getName(), "\" , __ts_query) AS __ts_rank, ")});
+	}
+
 	auto s = writeSelectFields(*item.scheme, sel, fields, schemeName);
-	return s.from(schemeName);
+	auto ret = s.from(schemeName);
+
+	if (isFullText) {
+		StringStream queryFrom;
+		for (auto &it : item.fullTextQuery) {
+			auto idx = binder.push(String(it.buffer));
+
+			if (!queryFrom.empty()) {
+				queryFrom  << " && ";
+			}
+			queryFrom  << "websearch_to_tsquery('" << it.getLanguageString() << "', $" << idx << "::text)";
+		}
+		auto queryStr = queryFrom.weak();
+		ret.from(Query::Field(queryStr).as("__ts_query"));
+
+		std::cout << q.query->getStream().str() << "\n";
+	}
+
+	return ret;
 }
 
 void ExecQuery::writeQueryListItem(GenericQuery &q, const QueryList &list, size_t idx, bool idOnly, const storage::Field *field, bool forSubquery) {

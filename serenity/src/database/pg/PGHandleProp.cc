@@ -546,6 +546,10 @@ data::Value Handle::performQueryList(const QueryList &list, size_t count, bool f
 		query.writeQueryArray(list, f);
 		query.finalize();
 		return select(*f, query);
+	} else if (f->getType() == Type::FullTextView) {
+		query.writeQueryList(list, false, count);
+		query.finalize();
+		return select(*list.getScheme(), query);
 	}
 
 	return data::Value();

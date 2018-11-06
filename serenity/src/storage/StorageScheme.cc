@@ -1064,7 +1064,7 @@ void Scheme::processFullTextFields(data::Value &patch) const {
 				for (auto &r_it : result) {
 					auto &value = val.emplace();
 					value.addString(r_it.buffer);
-					value.addString(r_it.language);
+					value.addInteger(toInt(r_it.language));
 					value.addInteger(toInt(r_it.rank));
 				}
 				patch.setValue(move(val), it->name);

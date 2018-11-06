@@ -81,6 +81,28 @@ protected:
 
 SP_DEFINE_ENUM_AS_MASK(QueryFieldResolver::Meta);
 
+struct FullTextData {
+	enum SearchRank {
+		A,
+		B,
+		C,
+		D
+	};
+
+	enum Language {
+		Simple,
+		English,
+		Russian,
+	};
+
+	String buffer;
+	Language language = Simple;
+	SearchRank rank = D;
+
+	static String getLanguageString(Language);
+
+	String getLanguageString() const;
+};
 
 class QueryList : public AllocBase {
 public:
@@ -94,6 +116,7 @@ public:
 
 		Query query;
 		QueryFieldResolver fields;
+		Vector<FullTextData> fullTextQuery;
 
 		const Set<const Field *> &getQueryFields() const;
 	};
@@ -109,6 +132,8 @@ public:
 	bool last(const Scheme *, const String &f, size_t v);
 	bool limit(const Scheme *, size_t limit);
 	bool offset(const Scheme *, size_t offset);
+
+	bool setFullTextQuery(const Field *field, Vector<FullTextData> &&);
 
 	bool setAll();
 	bool setField(const Scheme *, const Field *field);
@@ -146,6 +171,8 @@ public:
 
 	QueryFieldResolver getFields() const;
 
+	const data::Value &getExtraData() const;
+
 protected:
 	void decodeSelect(const Scheme &, Query &, const data::Value &);
 	void decodeOrder(const Scheme &, Query &, const String &, const data::Value &);
@@ -153,6 +180,7 @@ protected:
 	bool decodeIncludeItem(const Scheme &, Query &, const data::Value &);
 
 	Vector<Item> queries;
+	data::Value extraData;
 };
 
 NS_SA_EXT_END(storage)

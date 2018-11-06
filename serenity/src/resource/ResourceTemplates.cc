@@ -1116,4 +1116,46 @@ data::Value ResourceView::getResultObject() {
 	return processResultList(_queries, ret);
 }
 
+
+ResourceSearch::ResourceSearch(Adapter *a, QueryList &&q, const Field *prop)
+: ResourceObject(a, move(q)), _field(prop) {
+	_type = ResourceType::Search;
+}
+
+data::Value ResourceSearch::getResultObject() {
+	auto slot = _field->getSlot<storage::FieldFullTextView>();
+	if (auto &searchData = _queries.getExtraData().getValue("search")) {
+		Vector<storage::FullTextData> q;
+		if (slot->queryFn) {
+			q = slot->queryFn(searchData);
+		} else {
+			q = parseQueryDefault(searchData);
+		}
+
+		if (!q.empty()) {
+			_queries.setFullTextQuery(_field, move(q));
+			auto ret = _adapter->performQueryList(_queries, _queries.size(), false, _field);
+			if (!ret.isArray()) {
+				return data::Value();
+			}
+
+			return processResultList(_queries, ret);
+		}
+	}
+	return data::Value();
+}
+
+Vector<storage::FullTextData> ResourceSearch::parseQueryDefault(const data::Value &data) const {
+	if (data.isString()) {
+		StringViewUtf8 r(data.getString());
+		r.skipUntil<StringViewUtf8::MatchCharGroup<CharGroupId::Latin>, StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>>();
+		if (r.is<StringViewUtf8::MatchCharGroup<CharGroupId::Latin>>()) {
+			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::English}};
+		} else if (r.is<StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>>()) {
+			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::Russian}};
+		}
+	}
+	return Vector<storage::FullTextData>();
+}
+
 NS_SA_END

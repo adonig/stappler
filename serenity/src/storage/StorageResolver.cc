@@ -62,6 +62,16 @@ bool Resolver::selectByQuery(Query::Select &&q) {
 	return false;
 }
 
+bool Resolver::searchByField(const Field *field) {
+	if (_type == Objects) {
+		_resource = _storage->makeResource(ResourceType::Search, move(_queries), field);
+		_type = Search;
+		return true;
+	}
+	messages::error("ResourceResolver", "Invalid 'search', invalid resource type");
+	return false;
+}
+
 bool Resolver::order(const String &f, storage::Ordering o) {
 	if (_type == Objects) {
 		if (_queries.order(_scheme, f, o)) {

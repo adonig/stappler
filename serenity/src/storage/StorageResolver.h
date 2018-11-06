@@ -35,6 +35,8 @@ public:
 	bool selectByAlias(const String &); // objects/named-alias
 	bool selectByQuery(Query::Select &&); // objects/select/counter/2 or objects/select/counter/bw/10/20
 
+	bool searchByField(const Field *);
+
 	bool order(const String &f, Ordering o); // objects/order/counter/desc
 	bool first(const String &f, size_t v); // objects/first/10
 	bool last(const String &f, size_t v); // objects/last/10
@@ -57,6 +59,7 @@ protected:
 		Objects,
 		File,
 		Array,
+		Search,
 	};
 
 	bool _all = false;

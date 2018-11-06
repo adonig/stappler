@@ -149,6 +149,22 @@ static bool getSelectResource(storage::Resolver *resv, Vector<String> &path, boo
 	return false;
 }
 
+static bool getSearchResource(storage::Resolver *resv, Vector<String> &path, bool &isSingleObject) {
+	if (path.size() < 1) {
+		messages::error("ResourceResolver", "invalid 'search' query");
+		return false;
+	}
+
+	auto field = resv->getSchemeField(path.back());
+	if (!field || field->getType() != storage::Type::FullTextView) {
+		messages::error("ResourceResolver", "invalid 'search' query");
+		return false;
+	}
+	path.pop_back();
+
+	return resv->searchByField(field);
+}
+
 static bool getOrderResource(storage::Resolver *resv, Vector<String> &path) {
 	if (path.size() < 1) {
 		messages::error("ResourceResolver", "invalid 'order' query");
@@ -337,6 +353,10 @@ static Resource *parseResource(storage::Resolver *resv, Vector<String> &path) {
 				// do nothing
 			} else if (filter == "select") {
 				if (!getSelectResource(resv, path, isSingleObject)) {
+					return nullptr;
+				}
+			} else if (filter == "search") {
+				if (!getSearchResource(resv, path, isSingleObject)) {
 					return nullptr;
 				}
 			} else if (filter == "order") {

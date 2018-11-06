@@ -48,7 +48,8 @@ enum class ResourceType {
 	Set,
 	View,
 	File,
-	Array
+	Array,
+	Search
 };
 
 struct InputConfig {

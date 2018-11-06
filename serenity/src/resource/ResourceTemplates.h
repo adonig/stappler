@@ -192,6 +192,18 @@ protected:
 	const Field *_field = nullptr;
 };
 
+class ResourceSearch : public ResourceObject {
+public:
+	ResourceSearch(Adapter *h, QueryList &&q, const Field *prop);
+
+	virtual data::Value getResultObject() override;
+
+protected:
+	Vector<storage::FullTextData> parseQueryDefault(const data::Value &) const;
+
+	const Field *_field = nullptr;
+};
+
 NS_SA_END
 
 #endif /* SERENITY_SRC_RESOURCE_RESOURCETEMPLATES_H_ */
