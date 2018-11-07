@@ -75,6 +75,11 @@ enum class Flags : uint32_t {
 	Admin = 1 << 10, /** Field can be accessed by administrative queries only */
 	ForceInclude = 1 << 11, /** field will be internally included in all queries (useful for access control) */
 	Composed = 1 << 12, /** propagate modification events from objects in that field (for object and set fields) */
+
+	TsNormalize_DocLengthLog,
+	TsNormalize_DocLength,
+	TsNormalize_UniqueWordsCountLog,
+	TsNormalize_UniqueWordsCount,
 };
 
 SP_DEFINE_ENUM_AS_MASK(Flags)

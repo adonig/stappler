@@ -216,8 +216,16 @@ void ExecQuery::writeQueryRequest(ExecQuery::SelectWhere &w, Operator op, const 
 
 void ExecQuery::writeQueryReqest(ExecQuery::SelectFrom &s, const QueryList::Item &item) {
 	auto &q = item.query;
-	if (!item.all && !item.query.empty()) {
-		auto w = s.where();
+	if ((!item.all && !item.query.empty()) || !item.fullTextQuery.empty()) {
+		auto makeWhere = [&] () -> SelectWhere {
+			if (item.fullTextQuery.empty()) {
+				return s.where();
+			} else {
+				return s.where(ExecQuery::Field(item.scheme->getName(), item.field->getName()), Comparation::Includes, RawString{"__ts_query"});
+			}
+		};
+
+		auto w = makeWhere();
 		if (q.getSingleSelectId()) {
 			w.where(Operator::And, ExecQuery::Field(item.scheme->getName(), "__oid"), Comparation::Equal, q.getSingleSelectId());
 		} else if (!q.getSelectAlias().empty()) {
@@ -227,18 +235,22 @@ void ExecQuery::writeQueryReqest(ExecQuery::SelectFrom &s, const QueryList::Item
 		}
 	}
 
-	if (q.hasOrder() || q.hasLimit() || q.hasOffset()) {
+	if (q.hasOrder() || q.hasLimit() || q.hasOffset() || !item.fullTextQuery.empty()) {
+		auto ordering = q.getOrdering();
 		String orderField;
 		if (q.hasOrder()) {
 			orderField = q.getOrderField();
 		} else if (q.getSelectList().size() == 1) {
 			orderField = q.getSelectList().back().field;
+		} else if (!item.fullTextQuery.empty()) {
+			orderField = "__ts_rank";
+			ordering = Ordering::Descending;
 		} else {
 			orderField = "__oid";
 		}
 
-		SelectOrder o = s.order(q.getOrdering(), ExecQuery::Field(item.scheme->getName(), orderField),
-				q.getOrdering() == Ordering::Descending?sql::Nulls::Last:sql::Nulls::None);
+		SelectOrder o = s.order(ordering, item.fullTextQuery.empty() ? ExecQuery::Field(item.scheme->getName(), orderField) : ExecQuery::Field(orderField),
+				ordering == Ordering::Descending?sql::Nulls::Last:sql::Nulls::None);
 
 		if (q.hasLimit() && q.hasOffset()) {
 			o.limit(q.getLimitValue(), q.getOffsetValue());
@@ -301,7 +313,6 @@ auto ExecQuery::writeSelectFrom(GenericQuery &q, const QueryList::Item &item, bo
 	}
 
 	auto s = writeSelectFields(*item.scheme, sel, fields, schemeName);
-	auto ret = s.from(schemeName);
 
 	if (isFullText) {
 		StringStream queryFrom;
@@ -314,12 +325,10 @@ auto ExecQuery::writeSelectFrom(GenericQuery &q, const QueryList::Item &item, bo
 			queryFrom  << "websearch_to_tsquery('" << it.getLanguageString() << "', $" << idx << "::text)";
 		}
 		auto queryStr = queryFrom.weak();
-		ret.from(Query::Field(queryStr).as("__ts_query"));
-
-		std::cout << q.query->getStream().str() << "\n";
+		return s.from(Query::Field(queryStr).as("__ts_query")).from(schemeName);
+	} else {
+		return s.from(schemeName);
 	}
-
-	return ret;
 }
 
 void ExecQuery::writeQueryListItem(GenericQuery &q, const QueryList &list, size_t idx, bool idOnly, const storage::Field *field, bool forSubquery) {
@@ -411,6 +420,7 @@ void ExecQuery::writeQueryList(const QueryList &list, bool idOnly, size_t count)
 	}
 
 	writeQueryListItem(q, list, i, idOnly, nullptr, false);
+	std::cout << q.query->getStream().weak() << "\n";
 }
 
 void ExecQuery::writeQueryFile(const QueryList &list, const storage::Field *field) {
@@ -608,6 +618,8 @@ data::Value ResultRow::toData(const Scheme &scheme, const Map<String, Field> &vi
 				deltaPtr = &row.emplace("__delta");
 			}
 			deltaPtr->setInteger(toInteger(i), "time");
+		} else if (n == "__ts_rank") {
+			row.setDouble(toDouble(i), "__ts_rank");
 		} else if (!isNull(i)) {
 			if (auto f_it = scheme.getField(n)) {
 				row.setValue(toData(i, *f_it), n.str());

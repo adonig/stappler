@@ -332,6 +332,9 @@ int64_t Resource::processResolveResult(const QueryFieldResolver &res, const Set<
 				++ it;
 				continue;
 			}
+		} else if (it->first == "__ts_rank") {
+			++ it;
+			continue;
 		}
 
 		auto f = res.getField(it->first);

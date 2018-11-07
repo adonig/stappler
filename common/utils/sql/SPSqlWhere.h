@@ -104,6 +104,11 @@ inline void Query_writeComparation(Query<Binder> &q, StringStream &stream, const
 		stream << '"' << f.name << '"' << '>';
 		q.writeBind(forward<Value>(v2));
 		break;
+	case Comparation::Includes:
+		if (!f.source.empty()) { stream << f.source << "."; }
+		stream << '"' << f.name << '"' << "@@";
+		q.writeBind(forward<Value>(v1));
+		break;
 	}
 	stream << ")";
 }

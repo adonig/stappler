@@ -39,6 +39,7 @@ enum class Comparation {
 	BetweenEquals, // be  field >= v1 AND field <= v2
 	NotBetweenValues, // nbw  field < v1 OR field > v2
 	NotBetweenEquals, // nbe  field <= v1 OR field >= v2
+	Includes // @@ - operation
 };
 
 enum class Ordering {

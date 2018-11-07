@@ -613,20 +613,27 @@ struct SearchCmd : ResourceCmd {
 			path = r.readUntil<StringView::CharGroup<CharGroupId::WhiteSpace>>();
 			r.skipChars<StringView::CharGroup<CharGroupId::WhiteSpace>>();
 		}
+		data::Value data;
+		if (r.is('(')) {
+			data = data::serenity::read<memory::DefaultInterface>(r);
+		}
 
-		if (auto res = acquireResource(h, schemeName, path, StringView())) {
-			auto str = r.readUntil<StringView::Chars<'('>>();
+		r.skipChars<StringView::CharGroup<CharGroupId::WhiteSpace>>();
+		if (!r.empty()) {
+			data.setString(r, "search");
+		}
 
-			res->applyQuery(data::Value{ pair("search", data::Value(r)) });
+		if (auto res = acquireResource(h, schemeName, path, StringView(), data)) {
 			if (auto val = res->getResultObject()) {
 				h.sendData(val);
 				return true;
 			} else {
-				h.sendError(toString("Action for scheme ", schemeName, " is forbidden for ", h.getUser()->getName()));
+				h.sendError(toString(schemeName, ": nothing is found"));
+				return true;
 			}
 		}
 
-		h.sendError("Fail to delete object");
+		h.sendError("Fail run search");
 
 		return true;
 	}
