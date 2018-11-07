@@ -76,10 +76,10 @@ enum class Flags : uint32_t {
 	ForceInclude = 1 << 11, /** field will be internally included in all queries (useful for access control) */
 	Composed = 1 << 12, /** propagate modification events from objects in that field (for object and set fields) */
 
-	TsNormalize_DocLengthLog,
-	TsNormalize_DocLength,
-	TsNormalize_UniqueWordsCountLog,
-	TsNormalize_UniqueWordsCount,
+	TsNormalize_DocLengthLog = 1 << 24, /** Text search normalization: divides the rank by 1 + the logarithm of the document length */
+	TsNormalize_DocLength = 1 << 25, /** Text search normalization: divides the rank by the document length */
+	TsNormalize_UniqueWordsCount = 1 << 26, /** Text search normalization: divides the rank by the number of unique words in document */
+	TsNormalize_UniqueWordsCountLog = 1 << 27, /** Text search normalization: divides the rank by 1 + the logarithm of the number of unique words in document */
 };
 
 SP_DEFINE_ENUM_AS_MASK(Flags)

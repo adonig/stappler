@@ -199,6 +199,8 @@ public:
 	virtual data::Value getResultObject() override;
 
 protected:
+	Vector<String> stemQuery(const Vector<storage::FullTextData> &);
+
 	Vector<storage::FullTextData> parseQueryDefault(const data::Value &) const;
 
 	const Field *_field = nullptr;

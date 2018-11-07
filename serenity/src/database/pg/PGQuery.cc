@@ -309,7 +309,20 @@ auto ExecQuery::writeSelectFrom(GenericQuery &q, const QueryList::Item &item, bo
 	auto &fields = item.getQueryFields();
 
 	if (isFullText) {
-		sel.query->writeBind(RawString{toString(" ts_rank(", schemeName, ".\"", item.field->getName(), "\" , __ts_query) AS __ts_rank, ")});
+		auto f = item.field;
+		int normalizationValue = 0;
+		if (f->hasFlag(Flags::TsNormalize_DocLength)) {
+			normalizationValue |= 2;
+		} else if (f->hasFlag(Flags::TsNormalize_DocLengthLog)) {
+			normalizationValue |= 1;
+		} else if (f->hasFlag(Flags::TsNormalize_UniqueWordsCount)) {
+			normalizationValue |= 8;
+		} else if (f->hasFlag(Flags::TsNormalize_UniqueWordsCountLog)) {
+			normalizationValue |= 16;
+		}
+
+		sel.query->writeBind(RawString{
+			toString(" ts_rank(", schemeName, ".\"", item.field->getName(), "\" , __ts_query, ", normalizationValue, ") AS __ts_rank, ")});
 	}
 
 	auto s = writeSelectFields(*item.scheme, sel, fields, schemeName);

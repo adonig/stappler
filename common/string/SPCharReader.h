@@ -319,7 +319,7 @@ public:
     template <typename ... Args> void trimUntil();
 
 protected: // char-matching inline functions
-    template <typename ...Args> bool rv_match_utf8 (CharType *ptr, size_t len, uint8_t &offset);
+    template <typename ...Args> bool rv_match_utf8 (const CharType *ptr, size_t len, uint8_t &offset);
 	template <typename ...Args> bool match (char16_t c);
 };
 
@@ -1174,7 +1174,7 @@ inline void StringViewUtf8::trimUntil() {
 }
 
 template  <typename ...Args>
-inline bool StringViewUtf8::rv_match_utf8 (CharType *ptr, size_t len, uint8_t &offset) {
+inline bool StringViewUtf8::rv_match_utf8 (const CharType *ptr, size_t len, uint8_t &offset) {
 	while (len > 0) {
 		if (!unicode::isUtf8Surrogate(ptr[len - 1])) {
 			return match<Args...>(unicode::utf8Decode(ptr + len - 1, offset));
