@@ -43,7 +43,7 @@ static int turkish_UTF_8_r_check_vowel_harmony(struct SN_env * z);
 static int turkish_UTF_8_r_append_U_to_stems_ending_with_d_or_g(struct SN_env * z);
 
 
-static struct SN_env * turkish_UTF_8_create_env(void);
+static struct SN_env * turkish_UTF_8_create_env(struct SN_env *z);
 static void turkish_UTF_8_close_env(struct SN_env * z);
 
 
@@ -2084,7 +2084,7 @@ static int turkish_UTF_8_stem(struct SN_env * z) { /* forwardmode */
     return 1;
 }
 
-static struct SN_env * turkish_UTF_8_create_env(void) { return SN_create_env(0, 0, 1); }
+static struct SN_env * turkish_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 0, 1); }
 
 static void turkish_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

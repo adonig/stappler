@@ -30,5 +30,6 @@ THE SOFTWARE.
 #include "SPSearchDistance.cc"
 #include "SPSearchDistanceEdLib.cc"
 #include "SPSearchIndex.cc"
+#include "SPSnowballStemmer.cc"
 #include "SPSerenityPathQuery.cc"
 #include "SPSerenityRequest.cc"

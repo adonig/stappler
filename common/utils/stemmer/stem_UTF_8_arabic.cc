@@ -24,7 +24,7 @@ static int arabic_UTF_8_r_Prefix_Step2(struct SN_env * z);
 static int arabic_UTF_8_r_Prefix_Step1(struct SN_env * z);
 
 
-static struct SN_env * arabic_UTF_8_create_env(void);
+static struct SN_env * arabic_UTF_8_create_env(struct SN_env *z);
 static void arabic_UTF_8_close_env(struct SN_env * z);
 
 
@@ -1662,7 +1662,7 @@ lab35:
     return 1;
 }
 
-static struct SN_env * arabic_UTF_8_create_env(void) { return SN_create_env(0, 0, 3); }
+static struct SN_env * arabic_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 0, 3); }
 
 static void arabic_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

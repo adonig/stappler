@@ -9,7 +9,7 @@ static int lithuanian_UTF_8_r_step2(struct SN_env * z);
 static int lithuanian_UTF_8_stem(struct SN_env * z);
 
 
-static struct SN_env * lithuanian_UTF_8_create_env(void);
+static struct SN_env * lithuanian_UTF_8_create_env(struct SN_env *z);
 static void lithuanian_UTF_8_close_env(struct SN_env * z);
 
 
@@ -829,7 +829,7 @@ static int lithuanian_UTF_8_stem(struct SN_env * z) { /* forwardmode */
     return 1;
 }
 
-static struct SN_env * lithuanian_UTF_8_create_env(void) { return SN_create_env(0, 1, 0); }
+static struct SN_env * lithuanian_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 1, 0); }
 
 static void lithuanian_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

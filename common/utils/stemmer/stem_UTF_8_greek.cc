@@ -37,7 +37,7 @@ static int greek_UTF_8_r_tolower(struct SN_env * z);
 static int greek_UTF_8_stem(struct SN_env * z);
 
 
-static struct SN_env * greek_UTF_8_create_env(void);
+static struct SN_env * greek_UTF_8_create_env(struct SN_env *z);
 static void greek_UTF_8_close_env(struct SN_env * z);
 
 
@@ -4210,7 +4210,7 @@ static int greek_UTF_8_stem(struct SN_env * z) { /* forwardmode */
     return 1;
 }
 
-static struct SN_env * greek_UTF_8_create_env(void) { return SN_create_env(1, 0, 1); }
+static struct SN_env * greek_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 1, 0, 1); }
 
 static void greek_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 1); }
 

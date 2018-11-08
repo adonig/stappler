@@ -114,17 +114,12 @@ static void QueryFieldResolver_resolveByName(Set<const Field *> &ret, const Map<
 }
 
 
-String FullTextData::getLanguageString(Language lang) {
-	switch (lang) {
-	case Simple: return "simple"; break;
-	case English: return "english"; break;
-	case Russian: return "russian"; break;
-	}
-	return String();
+StringView FullTextData::getLanguageString(Language lang) {
+	return search::Stemmer::getLanguageString(lang);
 }
 
-String FullTextData::getLanguageString() const {
-	return getLanguageString(language);
+StringView FullTextData::getLanguageString() const {
+	return search::Stemmer::getLanguageString(language);
 }
 
 QueryFieldResolver::QueryFieldResolver() : root(nullptr) { }

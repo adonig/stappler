@@ -17,7 +17,7 @@ static int hungarian_UTF_8_r_R1(struct SN_env * z);
 static int hungarian_UTF_8_r_mark_regions(struct SN_env * z);
 
 
-static struct SN_env * hungarian_UTF_8_create_env(void);
+static struct SN_env * hungarian_UTF_8_create_env(struct SN_env *z);
 static void hungarian_UTF_8_close_env(struct SN_env * z);
 
 
@@ -868,7 +868,7 @@ static int hungarian_UTF_8_stem(struct SN_env * z) { /* forwardmode */
     return 1;
 }
 
-static struct SN_env * hungarian_UTF_8_create_env(void) { return SN_create_env(0, 1, 0); }
+static struct SN_env * hungarian_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 1, 0); }
 
 static void hungarian_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

@@ -14,7 +14,7 @@ static int finnish_UTF_8_r_R2(struct SN_env * z);
 static int finnish_UTF_8_r_mark_regions(struct SN_env * z);
 
 
-static struct SN_env * finnish_UTF_8_create_env(void);
+static struct SN_env * finnish_UTF_8_create_env(struct SN_env *z);
 static void finnish_UTF_8_close_env(struct SN_env * z);
 
 
@@ -718,7 +718,7 @@ lab5:
     return 1;
 }
 
-static struct SN_env * finnish_UTF_8_create_env(void) { return SN_create_env(1, 2, 1); }
+static struct SN_env * finnish_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 1, 2, 1); }
 
 static void finnish_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 1); }
 

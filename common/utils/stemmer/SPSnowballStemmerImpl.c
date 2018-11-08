@@ -2,76 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-struct sb_stemmer;
 typedef unsigned char sb_symbol;
 
-/* FIXME - should be able to get a version number for each stemming
- * algorithm (which will be incremented each time the output changes). */
-
-/** Returns an array of the names of the available stemming algorithms.
- *  Note that these are the canonical names - aliases (ie, other names for
- *  the same algorithm) will not be included in the list.
- *  The list is terminated with a null pointer.
- *
- *  The list must not be modified in any way.
- */
-const char ** sb_stemmer_list(void);
-
-/** Create a new stemmer object, using the specified algorithm, for the
- *  specified character encoding.
- *
- *  All algorithms will usually be available in UTF-8, but may also be
- *  available in other character encodings.
- *
- *  @param algorithm The algorithm name.  This is either the english
- *  name of the algorithm, or the 2 or 3 letter ISO 639 codes for the
- *  language.  Note that case is significant in this parameter - the
- *  value should be supplied in lower case.
- *
- *  @param charenc The character encoding.  NULL may be passed as
- *  this value, in which case UTF-8 encoding will be assumed. Otherwise,
- *  the argument may be one of "UTF_8", "ISO_8859_1" (ie, Latin 1),
- *  "CP850" (ie, MS-DOS Latin 1) or "KOI8_R" (Russian).  Note that
- *  case is significant in this parameter.
- *
- *  @return NULL if the specified algorithm is not recognised, or the
- *  algorithm is not available for the requested encoding.  Otherwise,
- *  returns a pointer to a newly created stemmer for the requested algorithm.
- *  The returned pointer must be deleted by calling sb_stemmer_delete().
- *
- *  @note NULL will also be returned if an out of memory error occurs.
- */
-struct sb_stemmer * sb_stemmer_new(const char * algorithm, const char * charenc);
-
-/** Delete a stemmer object.
- *
- *  This frees all resources allocated for the stemmer.  After calling
- *  this function, the supplied stemmer may no longer be used in any way.
- *
- *  It is safe to pass a null pointer to this function - this will have
- *  no effect.
- */
-void                sb_stemmer_delete(struct sb_stemmer * stemmer);
-
-/** Stem a word.
- *
- *  The return value is owned by the stemmer - it must not be freed or
- *  modified, and it will become invalid when the stemmer is called again,
- *  or if the stemmer is freed.
- *
- *  The length of the return value can be obtained using sb_stemmer_length().
- *
- *  If an out-of-memory error occurs, this will return NULL.
- */
-const sb_symbol *   sb_stemmer_stem(struct sb_stemmer * stemmer,
-				    const sb_symbol * word, int size);
-
-/** Get the length of the result of the last stemmed word.
- *  This should not be called before sb_stemmer_stem() has been called.
- */
-int                 sb_stemmer_length(struct sb_stemmer * stemmer);
-
+/*const char ** sb_stemmer_list(void);
+void sb_stemmer_delete(struct sb_stemmer * stemmer);
+const sb_symbol * sb_stemmer_stem(struct sb_stemmer * stemmer, const sb_symbol * word, int size);
+int sb_stemmer_length(struct sb_stemmer * stemmer);*/
 
 typedef unsigned char symbol;
 
@@ -94,7 +30,16 @@ typedef unsigned char symbol;
 
 */
 
+struct SN_alloc {
+	void *(*memalloc)( void *userData, unsigned int size );
+	void (*memfree)( void *userData, void *ptr );
+	void* userData;	// User data passed to the allocator functions.
+};
+
 struct SN_env {
+	struct SN_alloc *alloc;
+	int (*stem)(struct SN_env *);
+
     symbol * p;
     int c; int l; int lb; int bra; int ket;
     symbol * * S;
@@ -102,20 +47,20 @@ struct SN_env {
     unsigned char * B;
 };
 
-static struct SN_env * SN_create_env(int S_size, int I_size, int B_size);
+static struct SN_env * SN_create_env(struct SN_env *z, int S_size, int I_size, int B_size);
 static void SN_close_env(struct SN_env * z, int S_size);
 static int SN_set_current(struct SN_env * z, int size, const symbol * s);
 
-struct among
-{   int s_size;     /* number of chars in string */
+struct among {
+	int s_size;     /* number of chars in string */
     const symbol * s;       /* search string */
     int substring_i;/* index to longest matching substring */
     int result;     /* result of the lookup */
     int (* function)(struct SN_env *);
 };
 
-static symbol * create_s(void);
-static void lose_s(symbol * p);
+static symbol * create_s(struct SN_alloc *alloc);
+static void lose_s(struct SN_alloc *alloc, symbol * p);
 
 static int skip_utf8(const symbol * p, int c, int lb, int l, int n) __attribute__ ((unused));
 
@@ -173,136 +118,72 @@ static int len_utf8(const symbol * p) __attribute__ ((unused));
 #include "stem_UTF_8_tamil.cc"
 #include "stem_UTF_8_turkish.cc"
 
-typedef enum {
-  ENC_UNKNOWN=0,
-  ENC_UTF_8
-} stemmer_encoding_t;
-
-struct stemmer_encoding {
-  const char * name;
-  stemmer_encoding_t enc;
-};
-static struct stemmer_encoding encodings[] = {
-  {"UTF_8", ENC_UTF_8},
-  {0,ENC_UNKNOWN}
+enum Language {
+	Unknown = 0,
+	Arabic,
+	Danish,
+	Dutch,
+	English,
+	Finnish,
+	French,
+	German,
+	Greek,
+	Hungarian,
+	Indonesian,
+	Irish,
+	Italian,
+	Lithuanian,
+	Nepali,
+	Norwegian,
+	Portuguese,
+	Romanian,
+	Russian,
+	Spanish,
+	Swedish,
+	Tamil,
+	Turkish
 };
 
 struct stemmer_modules {
-  const char * name;
-  stemmer_encoding_t enc;
-  struct SN_env * (*create)(void);
-  void (*close)(struct SN_env *);
-  int (*stem)(struct SN_env *);
+	enum Language name;
+	struct SN_env * (*create)(struct SN_env *);
+	void (*close)(struct SN_env *);
+	int (*stem)(struct SN_env *);
 };
+
 static struct stemmer_modules modules[] = {
-  {"ar", ENC_UTF_8, arabic_UTF_8_create_env, arabic_UTF_8_close_env, arabic_UTF_8_stem},
-  {"ara", ENC_UTF_8, arabic_UTF_8_create_env, arabic_UTF_8_close_env, arabic_UTF_8_stem},
-  {"arabic", ENC_UTF_8, arabic_UTF_8_create_env, arabic_UTF_8_close_env, arabic_UTF_8_stem},
-  {"da", ENC_UTF_8, danish_UTF_8_create_env, danish_UTF_8_close_env, danish_UTF_8_stem},
-  {"dan", ENC_UTF_8, danish_UTF_8_create_env, danish_UTF_8_close_env, danish_UTF_8_stem},
-  {"danish", ENC_UTF_8, danish_UTF_8_create_env, danish_UTF_8_close_env, danish_UTF_8_stem},
-  {"de", ENC_UTF_8, german_UTF_8_create_env, german_UTF_8_close_env, german_UTF_8_stem},
-  {"deu", ENC_UTF_8, german_UTF_8_create_env, german_UTF_8_close_env, german_UTF_8_stem},
-  {"dut", ENC_UTF_8, dutch_UTF_8_create_env, dutch_UTF_8_close_env, dutch_UTF_8_stem},
-  {"dutch", ENC_UTF_8, dutch_UTF_8_create_env, dutch_UTF_8_close_env, dutch_UTF_8_stem},
-  {"el", ENC_UTF_8, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
-  {"ell", ENC_UTF_8, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
-  {"en", ENC_UTF_8, english_UTF_8_create_env, english_UTF_8_close_env, english_UTF_8_stem},
-  {"eng", ENC_UTF_8, english_UTF_8_create_env, english_UTF_8_close_env, english_UTF_8_stem},
-  {"english", ENC_UTF_8, english_UTF_8_create_env, english_UTF_8_close_env, english_UTF_8_stem},
-  {"es", ENC_UTF_8, spanish_UTF_8_create_env, spanish_UTF_8_close_env, spanish_UTF_8_stem},
-  {"esl", ENC_UTF_8, spanish_UTF_8_create_env, spanish_UTF_8_close_env, spanish_UTF_8_stem},
-  {"fi", ENC_UTF_8, finnish_UTF_8_create_env, finnish_UTF_8_close_env, finnish_UTF_8_stem},
-  {"fin", ENC_UTF_8, finnish_UTF_8_create_env, finnish_UTF_8_close_env, finnish_UTF_8_stem},
-  {"finnish", ENC_UTF_8, finnish_UTF_8_create_env, finnish_UTF_8_close_env, finnish_UTF_8_stem},
-  {"fr", ENC_UTF_8, french_UTF_8_create_env, french_UTF_8_close_env, french_UTF_8_stem},
-  {"fra", ENC_UTF_8, french_UTF_8_create_env, french_UTF_8_close_env, french_UTF_8_stem},
-  {"fre", ENC_UTF_8, french_UTF_8_create_env, french_UTF_8_close_env, french_UTF_8_stem},
-  {"french", ENC_UTF_8, french_UTF_8_create_env, french_UTF_8_close_env, french_UTF_8_stem},
-  {"ga", ENC_UTF_8, irish_UTF_8_create_env, irish_UTF_8_close_env, irish_UTF_8_stem},
-  {"ger", ENC_UTF_8, german_UTF_8_create_env, german_UTF_8_close_env, german_UTF_8_stem},
-  {"german", ENC_UTF_8, german_UTF_8_create_env, german_UTF_8_close_env, german_UTF_8_stem},
-  {"gle", ENC_UTF_8, irish_UTF_8_create_env, irish_UTF_8_close_env, irish_UTF_8_stem},
-  {"gre", ENC_UTF_8, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
-  {"greek", ENC_UTF_8, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
-  {"hu", ENC_UTF_8, hungarian_UTF_8_create_env, hungarian_UTF_8_close_env, hungarian_UTF_8_stem},
-  {"hun", ENC_UTF_8, hungarian_UTF_8_create_env, hungarian_UTF_8_close_env, hungarian_UTF_8_stem},
-  {"hungarian", ENC_UTF_8, hungarian_UTF_8_create_env, hungarian_UTF_8_close_env, hungarian_UTF_8_stem},
-  {"id", ENC_UTF_8, indonesian_UTF_8_create_env, indonesian_UTF_8_close_env, indonesian_UTF_8_stem},
-  {"ind", ENC_UTF_8, indonesian_UTF_8_create_env, indonesian_UTF_8_close_env, indonesian_UTF_8_stem},
-  {"indonesian", ENC_UTF_8, indonesian_UTF_8_create_env, indonesian_UTF_8_close_env, indonesian_UTF_8_stem},
-  {"irish", ENC_UTF_8, irish_UTF_8_create_env, irish_UTF_8_close_env, irish_UTF_8_stem},
-  {"it", ENC_UTF_8, italian_UTF_8_create_env, italian_UTF_8_close_env, italian_UTF_8_stem},
-  {"ita", ENC_UTF_8, italian_UTF_8_create_env, italian_UTF_8_close_env, italian_UTF_8_stem},
-  {"italian", ENC_UTF_8, italian_UTF_8_create_env, italian_UTF_8_close_env, italian_UTF_8_stem},
-  {"lit", ENC_UTF_8, lithuanian_UTF_8_create_env, lithuanian_UTF_8_close_env, lithuanian_UTF_8_stem},
-  {"lithuanian", ENC_UTF_8, lithuanian_UTF_8_create_env, lithuanian_UTF_8_close_env, lithuanian_UTF_8_stem},
-  {"lt", ENC_UTF_8, lithuanian_UTF_8_create_env, lithuanian_UTF_8_close_env, lithuanian_UTF_8_stem},
-  {"ne", ENC_UTF_8, nepali_UTF_8_create_env, nepali_UTF_8_close_env, nepali_UTF_8_stem},
-  {"nep", ENC_UTF_8, nepali_UTF_8_create_env, nepali_UTF_8_close_env, nepali_UTF_8_stem},
-  {"nepali", ENC_UTF_8, nepali_UTF_8_create_env, nepali_UTF_8_close_env, nepali_UTF_8_stem},
-  {"nl", ENC_UTF_8, dutch_UTF_8_create_env, dutch_UTF_8_close_env, dutch_UTF_8_stem},
-  {"nld", ENC_UTF_8, dutch_UTF_8_create_env, dutch_UTF_8_close_env, dutch_UTF_8_stem},
-  {"no", ENC_UTF_8, norwegian_UTF_8_create_env, norwegian_UTF_8_close_env, norwegian_UTF_8_stem},
-  {"nor", ENC_UTF_8, norwegian_UTF_8_create_env, norwegian_UTF_8_close_env, norwegian_UTF_8_stem},
-  {"norwegian", ENC_UTF_8, norwegian_UTF_8_create_env, norwegian_UTF_8_close_env, norwegian_UTF_8_stem},
-  {"por", ENC_UTF_8, portuguese_UTF_8_create_env, portuguese_UTF_8_close_env, portuguese_UTF_8_stem},
-  {"portuguese", ENC_UTF_8, portuguese_UTF_8_create_env, portuguese_UTF_8_close_env, portuguese_UTF_8_stem},
-  {"pt", ENC_UTF_8, portuguese_UTF_8_create_env, portuguese_UTF_8_close_env, portuguese_UTF_8_stem},
-  {"ro", ENC_UTF_8, romanian_UTF_8_create_env, romanian_UTF_8_close_env, romanian_UTF_8_stem},
-  {"romanian", ENC_UTF_8, romanian_UTF_8_create_env, romanian_UTF_8_close_env, romanian_UTF_8_stem},
-  {"ron", ENC_UTF_8, romanian_UTF_8_create_env, romanian_UTF_8_close_env, romanian_UTF_8_stem},
-  {"ru", ENC_UTF_8, russian_UTF_8_create_env, russian_UTF_8_close_env, russian_UTF_8_stem},
-  {"rum", ENC_UTF_8, romanian_UTF_8_create_env, romanian_UTF_8_close_env, romanian_UTF_8_stem},
-  {"rus", ENC_UTF_8, russian_UTF_8_create_env, russian_UTF_8_close_env, russian_UTF_8_stem},
-  {"russian", ENC_UTF_8, russian_UTF_8_create_env, russian_UTF_8_close_env, russian_UTF_8_stem},
-  {"spa", ENC_UTF_8, spanish_UTF_8_create_env, spanish_UTF_8_close_env, spanish_UTF_8_stem},
-  {"spanish", ENC_UTF_8, spanish_UTF_8_create_env, spanish_UTF_8_close_env, spanish_UTF_8_stem},
-  {"sv", ENC_UTF_8, swedish_UTF_8_create_env, swedish_UTF_8_close_env, swedish_UTF_8_stem},
-  {"swe", ENC_UTF_8, swedish_UTF_8_create_env, swedish_UTF_8_close_env, swedish_UTF_8_stem},
-  {"swedish", ENC_UTF_8, swedish_UTF_8_create_env, swedish_UTF_8_close_env, swedish_UTF_8_stem},
-  {"ta", ENC_UTF_8, tamil_UTF_8_create_env, tamil_UTF_8_close_env, tamil_UTF_8_stem},
-  {"tam", ENC_UTF_8, tamil_UTF_8_create_env, tamil_UTF_8_close_env, tamil_UTF_8_stem},
-  {"tamil", ENC_UTF_8, tamil_UTF_8_create_env, tamil_UTF_8_close_env, tamil_UTF_8_stem},
-  {"tr", ENC_UTF_8, turkish_UTF_8_create_env, turkish_UTF_8_close_env, turkish_UTF_8_stem},
-  {"tur", ENC_UTF_8, turkish_UTF_8_create_env, turkish_UTF_8_close_env, turkish_UTF_8_stem},
-  {"turkish", ENC_UTF_8, turkish_UTF_8_create_env, turkish_UTF_8_close_env, turkish_UTF_8_stem},
-  {0,ENC_UNKNOWN,0,0,0}
+  {Arabic, arabic_UTF_8_create_env, arabic_UTF_8_close_env, arabic_UTF_8_stem},
+  {Danish, danish_UTF_8_create_env, danish_UTF_8_close_env, danish_UTF_8_stem},
+  {Dutch, dutch_UTF_8_create_env, dutch_UTF_8_close_env, dutch_UTF_8_stem},
+  {Greek, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
+  {English, english_UTF_8_create_env, english_UTF_8_close_env, english_UTF_8_stem},
+  {Finnish, finnish_UTF_8_create_env, finnish_UTF_8_close_env, finnish_UTF_8_stem},
+  {French, french_UTF_8_create_env, french_UTF_8_close_env, french_UTF_8_stem},
+  {German, german_UTF_8_create_env, german_UTF_8_close_env, german_UTF_8_stem},
+  {Greek, greek_UTF_8_create_env, greek_UTF_8_close_env, greek_UTF_8_stem},
+  {Hungarian, hungarian_UTF_8_create_env, hungarian_UTF_8_close_env, hungarian_UTF_8_stem},
+  {Indonesian, indonesian_UTF_8_create_env, indonesian_UTF_8_close_env, indonesian_UTF_8_stem},
+  {Irish, irish_UTF_8_create_env, irish_UTF_8_close_env, irish_UTF_8_stem},
+  {Italian, italian_UTF_8_create_env, italian_UTF_8_close_env, italian_UTF_8_stem},
+  {Lithuanian, lithuanian_UTF_8_create_env, lithuanian_UTF_8_close_env, lithuanian_UTF_8_stem},
+  {Nepali, nepali_UTF_8_create_env, nepali_UTF_8_close_env, nepali_UTF_8_stem},
+  {Norwegian, norwegian_UTF_8_create_env, norwegian_UTF_8_close_env, norwegian_UTF_8_stem},
+  {Portuguese, portuguese_UTF_8_create_env, portuguese_UTF_8_close_env, portuguese_UTF_8_stem},
+  {Romanian, romanian_UTF_8_create_env, romanian_UTF_8_close_env, romanian_UTF_8_stem},
+  {Russian, russian_UTF_8_create_env, russian_UTF_8_close_env, russian_UTF_8_stem},
+  {Spanish, spanish_UTF_8_create_env, spanish_UTF_8_close_env, spanish_UTF_8_stem},
+  {Swedish, swedish_UTF_8_create_env, swedish_UTF_8_close_env, swedish_UTF_8_stem},
+  {Tamil, tamil_UTF_8_create_env, tamil_UTF_8_close_env, tamil_UTF_8_stem},
+  {Turkish, turkish_UTF_8_create_env, turkish_UTF_8_close_env, turkish_UTF_8_stem},
+  {Unknown,0,0,0}
 };
-
-static const char * algorithm_names[] = {
-  "arabic",
-  "danish",
-  "dutch",
-  "english",
-  "finnish",
-  "french",
-  "german",
-  "greek",
-  "hungarian",
-  "indonesian",
-  "irish",
-  "italian",
-  "lithuanian",
-  "nepali",
-  "norwegian",
-  "portuguese",
-  "romanian",
-  "russian",
-  "spanish",
-  "swedish",
-  "tamil",
-  "turkish",
-  0
-};
-
 
 
 #define CREATE_SIZE 1
 
-static symbol * create_s(void) {
+static symbol * create_s(struct SN_alloc *alloc) {
     symbol * p;
-    void * mem = malloc(HEAD + (CREATE_SIZE + 1) * sizeof(symbol));
+    void * mem = alloc->memalloc(alloc->userData, HEAD + (CREATE_SIZE + 1) * sizeof(symbol));
     if (mem == NULL) return NULL;
     p = (symbol *) (HEAD + (char *) mem);
     CAPACITY(p) = CREATE_SIZE;
@@ -310,9 +191,9 @@ static symbol * create_s(void) {
     return p;
 }
 
-static void lose_s(symbol * p) {
+static void lose_s(struct SN_alloc *alloc, symbol * p) {
     if (p == NULL) return;
-    free((char *) p - HEAD);
+    alloc->memfree(alloc->userData, (char *) p - HEAD);
 }
 
 /*
@@ -617,13 +498,13 @@ static int find_among_b(struct SN_env * z, const struct among * v, int v_size) {
 /* Increase the size of the buffer pointed to by p to at least n symbols.
  * If insufficient memory, returns NULL and frees the old buffer.
  */
-static symbol * increase_size(symbol * p, int n) {
+static symbol * increase_size(struct SN_alloc *alloc, symbol * p, int n) {
     symbol * q;
     int new_size = n + 20;
-    void * mem = realloc((char *) p - HEAD,
-                         HEAD + (new_size + 1) * sizeof(symbol));
+    void * mem = alloc->memalloc(alloc->userData, HEAD + (new_size + 1) * sizeof(symbol));
+    memcpy(mem, p - HEAD, CAPACITY(p));
     if (mem == NULL) {
-        lose_s(p);
+        lose_s(alloc, p);
         return NULL;
     }
     q = (symbol *) (HEAD + (char *)mem);
@@ -641,14 +522,14 @@ static int replace_s(struct SN_env * z, int c_bra, int c_ket, int s_size, const 
     int adjustment;
     int len;
     if (z->p == NULL) {
-        z->p = create_s();
+        z->p = create_s(z->alloc);
         if (z->p == NULL) return -1;
     }
     adjustment = s_size - (c_ket - c_bra);
     len = SIZE(z->p);
     if (adjustment != 0) {
         if (adjustment + len > CAPACITY(z->p)) {
-            z->p = increase_size(z->p, adjustment + len);
+            z->p = increase_size(z->alloc, z->p, adjustment + len);
             if (z->p == NULL) return -1;
         }
         memmove(z->p + c_ket + adjustment,
@@ -713,13 +594,13 @@ static int insert_v(struct SN_env * z, int bra, int ket, const symbol * p) {
 
 static symbol * slice_to(struct SN_env * z, symbol * p) {
     if (slice_check(z)) {
-        lose_s(p);
+        lose_s(z->alloc, p);
         return NULL;
     }
     {
         int len = z->ket - z->bra;
         if (CAPACITY(p) < len) {
-            p = increase_size(p, len);
+            p = increase_size(z->alloc, p, len);
             if (p == NULL)
                 return NULL;
         }
@@ -732,7 +613,7 @@ static symbol * slice_to(struct SN_env * z, symbol * p) {
 static symbol * assign_to(struct SN_env * z, symbol * p) {
     int len = z->l;
     if (CAPACITY(p) < len) {
-        p = increase_size(p, len);
+        p = increase_size(z->alloc, p, len);
         if (p == NULL)
             return NULL;
     }
@@ -752,34 +633,33 @@ static int len_utf8(const symbol * p) {
 }
 
 
-static struct SN_env * SN_create_env(int S_size, int I_size, int B_size)
+static struct SN_env * SN_create_env(struct SN_env *z, int S_size, int I_size, int B_size)
 {
-    struct SN_env * z = (struct SN_env *) calloc(1, sizeof(struct SN_env));
     if (z == NULL) return NULL;
-    z->p = create_s();
+    z->p = create_s(z->alloc);
     if (z->p == NULL) goto error;
     if (S_size)
     {
         int i;
-        z->S = (symbol * *) calloc(S_size, sizeof(symbol *));
+        z->S = (symbol * *) z->alloc->memalloc(z->alloc->userData, S_size * sizeof(symbol *));
         if (z->S == NULL) goto error;
 
         for (i = 0; i < S_size; i++)
         {
-            z->S[i] = create_s();
+            z->S[i] = create_s(z->alloc);
             if (z->S[i] == NULL) goto error;
         }
     }
 
     if (I_size)
     {
-        z->I = (int *) calloc(I_size, sizeof(int));
+        z->I = (int *) z->alloc->memalloc(z->alloc->userData, I_size * sizeof(int));
         if (z->I == NULL) goto error;
     }
 
     if (B_size)
     {
-        z->B = (unsigned char *) calloc(B_size, sizeof(unsigned char));
+        z->B = (unsigned char *) z->alloc->memalloc(z->alloc->userData, B_size * sizeof(unsigned char));
         if (z->B == NULL) goto error;
     }
 
@@ -797,14 +677,13 @@ static void SN_close_env(struct SN_env * z, int S_size)
         int i;
         for (i = 0; i < S_size; i++)
         {
-            lose_s(z->S[i]);
+            lose_s(z->alloc, z->S[i]);
         }
-        free(z->S);
+        z->alloc->memfree(z->alloc->userData, z->S);
     }
-    free(z->I);
-    free(z->B);
-    if (z->p) lose_s(z->p);
-    free(z);
+    z->alloc->memfree(z->alloc->userData, z->I);
+    z->alloc->memfree(z->alloc->userData, z->B);
+    if (z->p) lose_s(z->alloc, z->p);
 }
 
 static int SN_set_current(struct SN_env * z, int size, const symbol * s)
@@ -814,93 +693,25 @@ static int SN_set_current(struct SN_env * z, int size, const symbol * s)
     return err;
 }
 
-
-struct sb_stemmer {
-    struct SN_env * (*create)(void);
-    void (*close)(struct SN_env *);
-    int (*stem)(struct SN_env *);
-
-    struct SN_env * env;
-};
-
-extern const char **
-sb_stemmer_list(void)
-{
-    return algorithm_names;
-}
-
-static stemmer_encoding_t
-sb_getenc(const char * charenc)
-{
-    struct stemmer_encoding * encoding;
-    if (charenc == NULL) return ENC_UTF_8;
-    for (encoding = encodings; encoding->name != 0; encoding++) {
-	if (strcmp(encoding->name, charenc) == 0) break;
+extern const sb_symbol * sb_stemmer_stem(struct SN_env * z, const sb_symbol * word, int size) {
+    int ret;
+    if (SN_set_current(z, size, (const symbol *)(word)))
+    {
+        z->l = 0;
+        return NULL;
     }
-    if (encoding->name == NULL) return ENC_UNKNOWN;
-    return encoding->enc;
+    ret = z->stem(z);
+    if (ret < 0) return NULL;
+    z->p[z->l] = 0;
+    return (const sb_symbol *)(z->p);
 }
 
-extern struct sb_stemmer *
-sb_stemmer_new(const char * algorithm, const char * charenc)
-{
-    stemmer_encoding_t enc;
+extern struct stemmer_modules * sb_stemmer_get(enum Language lang) {
     struct stemmer_modules * module;
-    struct sb_stemmer * stemmer;
-
-    enc = sb_getenc(charenc);
-    if (enc == ENC_UNKNOWN) return NULL;
 
     for (module = modules; module->name != 0; module++) {
-	if (strcmp(module->name, algorithm) == 0 && module->enc == enc) break;
+    	if (module->name == lang) break;
     }
-    if (module->name == NULL) return NULL;
-
-    stemmer = (struct sb_stemmer *) malloc(sizeof(struct sb_stemmer));
-    if (stemmer == NULL) return NULL;
-
-    stemmer->create = module->create;
-    stemmer->close = module->close;
-    stemmer->stem = module->stem;
-
-    stemmer->env = stemmer->create();
-    if (stemmer->env == NULL)
-    {
-        sb_stemmer_delete(stemmer);
-        return NULL;
-    }
-
-    return stemmer;
+    return module;
 }
 
-void
-sb_stemmer_delete(struct sb_stemmer * stemmer)
-{
-    if (stemmer == 0) return;
-    if (stemmer->close) {
-        stemmer->close(stemmer->env);
-        stemmer->close = 0;
-    }
-    free(stemmer);
-}
-
-const sb_symbol *
-sb_stemmer_stem(struct sb_stemmer * stemmer, const sb_symbol * word, int size)
-{
-    int ret;
-    if (SN_set_current(stemmer->env, size, (const symbol *)(word)))
-    {
-        stemmer->env->l = 0;
-        return NULL;
-    }
-    ret = stemmer->stem(stemmer->env);
-    if (ret < 0) return NULL;
-    stemmer->env->p[stemmer->env->l] = 0;
-    return (const sb_symbol *)(stemmer->env->p);
-}
-
-int
-sb_stemmer_length(struct sb_stemmer * stemmer)
-{
-    return stemmer->env->l;
-}

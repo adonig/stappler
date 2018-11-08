@@ -9,7 +9,7 @@ static int german_UTF_8_r_postlude(struct SN_env * z);
 static int german_UTF_8_r_prelude(struct SN_env * z);
 
 
-static struct SN_env * german_UTF_8_create_env(void);
+static struct SN_env * german_UTF_8_create_env(struct SN_env *z);
 static void german_UTF_8_close_env(struct SN_env * z);
 
 
@@ -488,7 +488,7 @@ lab2:
     return 1;
 }
 
-static struct SN_env * german_UTF_8_create_env(void) { return SN_create_env(0, 3, 0); }
+static struct SN_env * german_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 3, 0); }
 
 static void german_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

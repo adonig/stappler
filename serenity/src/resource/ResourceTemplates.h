@@ -204,6 +204,7 @@ protected:
 	Vector<storage::FullTextData> parseQueryDefault(const data::Value &) const;
 
 	const Field *_field = nullptr;
+	search::Stemmer _stemmer;
 };
 
 NS_SA_END

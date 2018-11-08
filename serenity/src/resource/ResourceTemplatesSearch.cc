@@ -26,8 +26,6 @@ THE SOFTWARE.
 #include "StorageScheme.h"
 #include "SPCharGroup.h"
 
-#include "libstemmer.h"
-
 NS_SA_BEGIN
 
 ResourceSearch::ResourceSearch(Adapter *a, QueryList &&q, const Field *prop)
@@ -59,40 +57,19 @@ data::Value ResourceSearch::getResultObject() {
 }
 
 Vector<String> ResourceSearch::stemQuery(const Vector<storage::FullTextData> &query) {
-	Map<StringView, struct sb_stemmer *> stemmers;
-	Vector<String> ret; ret.reserve(256 / sizeof(String)); // memory distribution hack
-
-	auto getStemmer = [&] (const StringView &name) -> struct sb_stemmer * {
-		auto it = stemmers.find(name);
-		if (it != stemmers.end()) {
-			return it->second;
-		} else {
-			if (auto stemmer = sb_stemmer_new(name.data(), nullptr)) {
-				stemmers.emplace(name, stemmer);
-				return stemmer;
-			}
-			return nullptr;
-		}
-	};
+	Vector<String> ret; ret.reserve(256 / sizeof(String)); // memory manager hack
 
 	for (auto &it : query) {
-		if (auto stemmer = getStemmer(it.getLanguageString())) {
-			StringView r(it.buffer);
-			r.split<StringView::CharGroup<CharGroupId::WhiteSpace>>([&] (StringView &iword) {
-				StringViewUtf8 word(iword.data(), iword.size());
-				word.trimUntil<StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>, StringViewUtf8::MatchCharGroup<CharGroupId::Alphanumeric>>();
-				if (word.size() > 3) {
-					if (auto stemmed = sb_stemmer_stem(stemmer, (const sb_symbol *)word.data(), int(word.size()))) {
-						ret.emplace_back(StringView((const char *)stemmed, sb_stemmer_length(stemmer)).str());
-					}
-				}
-			});
-		}
+		StringView r(it.buffer);
+		r.split<StringView::CharGroup<CharGroupId::WhiteSpace>>([&] (StringView &iword) {
+			StringViewUtf8 word(iword.data(), iword.size());
+			word.trimUntil<StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>, StringViewUtf8::MatchCharGroup<CharGroupId::Alphanumeric>>();
+			if (word.size() > 3) {
+				ret.emplace_back(_stemmer.stem(word, it.language).str());
+			}
+		});
 	}
 
-	for (auto &it : stemmers) {
-		sb_stemmer_delete(it.second);
-	}
 	return ret;
 }
 
@@ -101,9 +78,9 @@ Vector<storage::FullTextData> ResourceSearch::parseQueryDefault(const data::Valu
 		StringViewUtf8 r(data.getString());
 		r.skipUntil<StringViewUtf8::MatchCharGroup<CharGroupId::Latin>, StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>>();
 		if (r.is<StringViewUtf8::MatchCharGroup<CharGroupId::Latin>>()) {
-			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::English}};
+			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::Language::English}};
 		} else if (r.is<StringViewUtf8::MatchCharGroup<CharGroupId::Cyrillic>>()) {
-			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::Russian}};
+			return Vector<storage::FullTextData>{storage::FullTextData{data.getString(), storage::FullTextData::Language::Russian}};
 		}
 	}
 	return Vector<storage::FullTextData>();

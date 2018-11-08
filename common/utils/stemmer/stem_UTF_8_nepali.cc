@@ -7,7 +7,7 @@ static int nepali_UTF_8_r_check_category_2(struct SN_env * z);
 static int nepali_UTF_8_r_remove_category_1(struct SN_env * z);
 
 
-static struct SN_env * nepali_UTF_8_create_env(void);
+static struct SN_env * nepali_UTF_8_create_env(struct SN_env *z);
 static void nepali_UTF_8_close_env(struct SN_env * z);
 
 
@@ -403,7 +403,7 @@ static int nepali_UTF_8_stem(struct SN_env * z) { /* forwardmode */
     return 1;
 }
 
-static struct SN_env * nepali_UTF_8_create_env(void) { return SN_create_env(0, 0, 0); }
+static struct SN_env * nepali_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 0, 0); }
 
 static void nepali_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

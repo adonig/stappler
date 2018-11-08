@@ -13,7 +13,7 @@ static int indonesian_UTF_8_r_remove_possessive_pronoun(struct SN_env * z);
 static int indonesian_UTF_8_r_remove_particle(struct SN_env * z);
 
 
-static struct SN_env * indonesian_UTF_8_create_env(void);
+static struct SN_env * indonesian_UTF_8_create_env(struct SN_env *z);
 static void indonesian_UTF_8_close_env(struct SN_env * z);
 
 
@@ -393,7 +393,7 @@ lab4:
     return 1;
 }
 
-static struct SN_env * indonesian_UTF_8_create_env(void) { return SN_create_env(0, 2, 0); }
+static struct SN_env * indonesian_UTF_8_create_env(struct SN_env *z) { return SN_create_env(z, 0, 2, 0); }
 
 static void indonesian_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
 

@@ -24,6 +24,7 @@ THE SOFTWARE.
 #define SERENITY_SRC_STORAGE_STORAGEQUERY_H_
 
 #include "SPSerenityRequest.h"
+#include "SPSnowballStemmer.h"
 #include "Define.h"
 
 NS_SA_EXT_BEGIN(storage)
@@ -89,19 +90,15 @@ struct FullTextData {
 		D
 	};
 
-	enum Language {
-		Simple,
-		English,
-		Russian,
-	};
+	using Language = search::Stemmer::Language;
 
 	String buffer;
-	Language language = Simple;
+	Language language = Language::Unknown;
 	SearchRank rank = D;
 
-	static String getLanguageString(Language);
+	static StringView getLanguageString(Language);
 
-	String getLanguageString() const;
+	StringView getLanguageString() const;
 };
 
 class QueryList : public AllocBase {
